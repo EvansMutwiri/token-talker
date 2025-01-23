@@ -1,47 +1,55 @@
-interface CoinGeckoResponse {
-  [key: string]: {
-    usd: number;
-    usd_24h_change: number;
-    usd_market_cap: number;
-    usd_24h_vol: number;
-  };
+interface DexScreenerResponse {
+  url: string;
+  chainId: string;
+  tokenAddress: string;
+  icon: string;
+  header: string;
+  description: string;
+  links: {
+    type: string;
+    label: string;
+    url: string;
+  }[];
 }
 
-interface GlobalDataResponse {
-  data: {
-    total_market_cap: { usd: number };
-    total_volume: { usd: number };
-    market_cap_percentage: { btc: number };
-  };
+interface DexScreenerPairResponse {
+  pairs: {
+    priceUsd: string;
+    priceChange24h: number;
+    volume24h: number;
+    fdv: number;
+  }[];
 }
 
 export const fetchTokenData = async (symbol: string) => {
   try {
-    const normalizedSymbol = symbol.toLowerCase();
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${normalizedSymbol}&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
-    );
-    const data: CoinGeckoResponse = await response.json();
+    const [profileResponse, pairResponse] = await Promise.all([
+      fetch('https://api.dexscreener.com/token-profiles/latest/v1'),
+      fetch(`https://api.dexscreener.com/latest/dex/tokens/${symbol}`)
+    ]);
 
-    if (!data[normalizedSymbol]) {
+    const profileData: DexScreenerResponse = await profileResponse.json();
+    const pairData: DexScreenerPairResponse = await pairResponse.json();
+
+    if (!pairData.pairs || pairData.pairs.length === 0) {
       throw new Error("Token not found");
     }
 
-    const tokenData = data[normalizedSymbol];
+    const pair = pairData.pairs[0];
     const sentiment: "bullish" | "bearish" | "neutral" = 
-      tokenData.usd_24h_change > 2 ? "bullish" :
-      tokenData.usd_24h_change < -2 ? "bearish" :
+      pair.priceChange24h > 2 ? "bullish" :
+      pair.priceChange24h < -2 ? "bearish" :
       "neutral";
 
     return {
       symbol: symbol.toUpperCase(),
-      price: `$${tokenData.usd.toLocaleString(undefined, {
+      price: `$${Number(pair.priceUsd).toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`,
-      change24h: `${tokenData.usd_24h_change.toFixed(2)}%`,
-      marketCap: `$${(tokenData.usd_market_cap / 1e9).toFixed(2)}B`,
-      volume24h: `$${(tokenData.usd_24h_vol / 1e9).toFixed(2)}B`,
+      change24h: `${pair.priceChange24h.toFixed(2)}%`,
+      marketCap: `$${(pair.fdv / 1e9).toFixed(2)}B`,
+      volume24h: `$${(pair.volume24h / 1e9).toFixed(2)}B`,
       sentiment,
     };
   } catch (error) {
@@ -52,32 +60,29 @@ export const fetchTokenData = async (symbol: string) => {
 
 export const fetchMarketInsights = async () => {
   try {
-    const [globalData, topTokens] = await Promise.all([
-      fetch("https://api.coingecko.com/api/v3/global").then((res) =>
-        res.json()
-      ) as Promise<GlobalDataResponse>,
-      fetch(
-        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=price_change_percentage_24h&per_page=100&sparkline=false"
-      ).then((res) => res.json()),
-    ]);
+    const response = await fetch('https://api.dexscreener.com/latest/dex/tokens/trending');
+    const data = await response.json();
+    const pairs = data.pairs || [];
 
-    const topGainer = topTokens[0];
-    const topLoser = topTokens[topTokens.length - 1];
+    // Sort pairs by price change to get top gainers and losers
+    const sortedPairs = [...pairs].sort((a, b) => b.priceChange24h - a.priceChange24h);
+    const topGainer = sortedPairs[0];
+    const topLoser = sortedPairs[sortedPairs.length - 1];
+
+    // Calculate total market cap and volume
+    const totalMarketCap = pairs.reduce((sum, pair) => sum + (pair.fdv || 0), 0);
+    const totalVolume = pairs.reduce((sum, pair) => sum + (pair.volume24h || 0), 0);
+
+    // Calculate BTC dominance (assuming BTC is in the pairs)
+    const btcPair = pairs.find(pair => pair.baseToken.symbol.toLowerCase() === 'wbtc');
+    const btcDominance = btcPair ? (btcPair.fdv / totalMarketCap) * 100 : 0;
 
     return {
-      totalMarketCap: `$${(
-        globalData.data.total_market_cap.usd / 1e12
-      ).toFixed(2)}T`,
-      totalVolume24h: `$${(
-        globalData.data.total_volume.usd / 1e9
-      ).toFixed(2)}B`,
-      btcDominance: `${globalData.data.market_cap_percentage.btc.toFixed(1)}%`,
-      topGainer: `${topGainer.symbol.toUpperCase()} ${topGainer.price_change_percentage_24h.toFixed(
-        1
-      )}%`,
-      topLoser: `${topLoser.symbol.toUpperCase()} ${topLoser.price_change_percentage_24h.toFixed(
-        1
-      )}%`,
+      totalMarketCap: `$${(totalMarketCap / 1e12).toFixed(2)}T`,
+      totalVolume24h: `$${(totalVolume / 1e9).toFixed(2)}B`,
+      btcDominance: `${btcDominance.toFixed(1)}%`,
+      topGainer: `${topGainer?.baseToken?.symbol || 'N/A'} ${topGainer?.priceChange24h?.toFixed(1) || 0}%`,
+      topLoser: `${topLoser?.baseToken?.symbol || 'N/A'} ${topLoser?.priceChange24h?.toFixed(1) || 0}%`,
     };
   } catch (error) {
     console.error("Error fetching market insights:", error);
