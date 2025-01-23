@@ -9,22 +9,37 @@ interface Message {
     symbol: string;
     price: string;
     change24h: string;
+    marketCap?: string;
+    volume24h?: string;
+    sentiment?: "bullish" | "bearish" | "neutral";
+  };
+  marketInsight?: {
+    totalMarketCap: string;
+    totalVolume24h: string;
+    btcDominance: string;
+    topGainer: string;
+    topLoser: string;
   };
 }
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
-      content: "Hello! I'm your crypto assistant. You can ask me about any cryptocurrency using its code (e.g., $BTC) or ask general questions about crypto!",
+      content: "Hello! I'm your crypto assistant. You can ask me about any cryptocurrency using its code (e.g., $BTC) or ask for market insights!",
       isBot: true,
+      marketInsight: {
+        totalMarketCap: "$2.1T",
+        totalVolume24h: "$98.5B",
+        btcDominance: "48.2%",
+        topGainer: "SOL +12.5%",
+        topLoser: "DOGE -8.2%",
+      },
     },
   ]);
 
   const handleSendMessage = async (message: string) => {
-    // Add user message
     setMessages((prev) => [...prev, { content: message, isBot: false }]);
 
-    // Check for token query
     const tokenMatch = message.match(/\$([A-Za-z]+)/);
     if (tokenMatch) {
       const token = tokenMatch[1].toUpperCase();
@@ -39,17 +54,37 @@ const Index = () => {
               symbol: token,
               price: "$45,000.00",
               change24h: "+2.5%",
+              marketCap: "$850B",
+              volume24h: "$24.5B",
+              sentiment: "bullish",
             },
           },
         ]);
       }, 1000);
-    } else {
-      // Simple bot response for other messages
+    } else if (message.toLowerCase().includes("market") || message.toLowerCase().includes("overview")) {
+      // Provide market insights for general market-related queries
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
           {
-            content: "I can help you check cryptocurrency prices. Try asking about a specific token using its code (e.g., $BTC, $ETH)!",
+            content: "Here's the current market overview:",
+            isBot: true,
+            marketInsight: {
+              totalMarketCap: "$2.1T",
+              totalVolume24h: "$98.5B",
+              btcDominance: "48.2%",
+              topGainer: "SOL +12.5%",
+              topLoser: "DOGE -8.2%",
+            },
+          },
+        ]);
+      }, 500);
+    } else {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            content: "I can help you check cryptocurrency prices and market insights. Try asking about a specific token using its code (e.g., $BTC) or ask for a market overview!",
             isBot: true,
           },
         ]);
