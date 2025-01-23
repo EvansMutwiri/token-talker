@@ -1,6 +1,8 @@
 import { ChatInput } from "@/components/ChatInput";
 import { ChatMessage } from "@/components/ChatMessage";
 import { useState } from "react";
+import { fetchTokenData, fetchMarketInsights } from "@/utils/cryptoApi";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   content: string;
@@ -23,64 +25,62 @@ interface Message {
 }
 
 const Index = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      content: "Hello! I'm your crypto assistant. You can ask me about any cryptocurrency using its code (e.g., $BTC) or ask for market insights!",
-      isBot: true,
-      marketInsight: {
-        totalMarketCap: "$2.1T",
-        totalVolume24h: "$98.5B",
-        btcDominance: "48.2%",
-        topGainer: "SOL +12.5%",
-        topLoser: "DOGE -8.2%",
-      },
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const { toast } = useToast();
+
+  const initializeChat = async () => {
+    try {
+      const marketInsight = await fetchMarketInsights();
+      setMessages([
+        {
+          content: "Hello! I'm your crypto assistant. You can ask me about any cryptocurrency using its code (e.g., $BTC) or ask for market insights!",
+          isBot: true,
+          marketInsight,
+        },
+      ]);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch market data. Please try again later.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useState(() => {
+    initializeChat();
+  }, []);
 
   const handleSendMessage = async (message: string) => {
     setMessages((prev) => [...prev, { content: message, isBot: false }]);
 
     const tokenMatch = message.match(/\$([A-Za-z]+)/);
-    if (tokenMatch) {
-      const token = tokenMatch[1].toUpperCase();
-      // Simulate API call - In a real app, you'd fetch from a crypto API
-      setTimeout(() => {
+    try {
+      if (tokenMatch) {
+        const token = tokenMatch[1].toLowerCase();
+        const tokenData = await fetchTokenData(token);
         setMessages((prev) => [
           ...prev,
           {
-            content: `Here's the latest information for ${token}:`,
+            content: `Here's the latest information for ${token.toUpperCase()}:`,
             isBot: true,
-            tokenData: {
-              symbol: token,
-              price: "$45,000.00",
-              change24h: "+2.5%",
-              marketCap: "$850B",
-              volume24h: "$24.5B",
-              sentiment: "bullish",
-            },
+            tokenData,
           },
         ]);
-      }, 1000);
-    } else if (message.toLowerCase().includes("market") || message.toLowerCase().includes("overview")) {
-      // Provide market insights for general market-related queries
-      setTimeout(() => {
+      } else if (
+        message.toLowerCase().includes("market") ||
+        message.toLowerCase().includes("overview")
+      ) {
+        const marketInsight = await fetchMarketInsights();
         setMessages((prev) => [
           ...prev,
           {
             content: "Here's the current market overview:",
             isBot: true,
-            marketInsight: {
-              totalMarketCap: "$2.1T",
-              totalVolume24h: "$98.5B",
-              btcDominance: "48.2%",
-              topGainer: "SOL +12.5%",
-              topLoser: "DOGE -8.2%",
-            },
+            marketInsight,
           },
         ]);
-      }, 500);
-    } else {
-      setTimeout(() => {
+      } else {
         setMessages((prev) => [
           ...prev,
           {
@@ -88,7 +88,13 @@ const Index = () => {
             isBot: true,
           },
         ]);
-      }, 500);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch data. Please try again later.",
+        variant: "destructive",
+      });
     }
   };
 
