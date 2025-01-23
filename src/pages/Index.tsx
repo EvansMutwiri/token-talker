@@ -1,6 +1,6 @@
 import { ChatInput } from "@/components/ChatInput";
 import { ChatMessage } from "@/components/ChatMessage";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { fetchTokenData, fetchMarketInsights } from "@/utils/cryptoApi";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,7 +47,7 @@ const Index = () => {
     }
   };
 
-  useState(() => {
+  useEffect(() => {
     initializeChat();
   }, []);
 
@@ -64,7 +64,10 @@ const Index = () => {
           {
             content: `Here's the latest information for ${token.toUpperCase()}:`,
             isBot: true,
-            tokenData,
+            tokenData: {
+              ...tokenData,
+              sentiment: tokenData.sentiment as "bullish" | "bearish" | "neutral"
+            },
           },
         ]);
       } else if (

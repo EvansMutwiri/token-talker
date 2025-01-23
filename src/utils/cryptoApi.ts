@@ -28,6 +28,11 @@ export const fetchTokenData = async (symbol: string) => {
     }
 
     const tokenData = data[normalizedSymbol];
+    const sentiment: "bullish" | "bearish" | "neutral" = 
+      tokenData.usd_24h_change > 2 ? "bullish" :
+      tokenData.usd_24h_change < -2 ? "bearish" :
+      "neutral";
+
     return {
       symbol: symbol.toUpperCase(),
       price: `$${tokenData.usd.toLocaleString(undefined, {
@@ -37,7 +42,7 @@ export const fetchTokenData = async (symbol: string) => {
       change24h: `${tokenData.usd_24h_change.toFixed(2)}%`,
       marketCap: `$${(tokenData.usd_market_cap / 1e9).toFixed(2)}B`,
       volume24h: `$${(tokenData.usd_24h_vol / 1e9).toFixed(2)}B`,
-      sentiment: tokenData.usd_24h_change > 0 ? "bullish" : "bearish",
+      sentiment,
     };
   } catch (error) {
     console.error("Error fetching token data:", error);
